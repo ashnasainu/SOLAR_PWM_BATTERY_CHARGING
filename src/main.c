@@ -22,6 +22,28 @@
 #define LCD_BACKLIGHT_PORT GPIOB
 #define LCD_BACKLIGHT_PIN  GPIO_PIN_5
 
+
+// ----------------------------------------------------------
+//  ADC Averaging Function (10 samples)
+// ----------------------------------------------------------
+uint16_t ADC_Read_Average(uint8_t channel)
+{
+    uint32_t sum = 0;
+    uint8_t i;
+
+    for(i = 0; i < 10; i++)    // take 10 readings
+    {
+        sum += ADC_Read(channel);
+        delay_ms(2);           // small delay for stability
+    }
+
+    return (uint16_t)(sum / 10);   // return average
+}
+
+
+// ----------------------------------------------------------
+// Print 4-digit integer on LCD
+// ----------------------------------------------------------
 void LCD_Print_Var(int var)
 {
     char d4, d3, d2, d1;
@@ -36,26 +58,29 @@ void LCD_Print_Var(int var)
     Lcd_Print_Char(d4);
 }
 
+
+// ----------------------------------------------------------
+// MAIN PROGRAM
+// ----------------------------------------------------------
 int main(void)
 {
-    // ---- Variable declarations (COSMIC requires at top) ----
     unsigned int ADC_value = 0;
     int ADC_voltage = 0;
     float NEW_ADC_VOLTAGE = 0;
 
-    int integer_part;      // for float formatting
+    int integer_part;
     int decimal_part;
     char buffer[16];
 
-    // ---- LCD Backlight ----
+    // LCD Backlight
     GPIO_Init(LCD_BACKLIGHT_PORT, LCD_BACKLIGHT_PIN, GPIO_MODE_OUT_PP_HIGH_FAST);
     GPIO_WriteHigh(LCD_BACKLIGHT_PORT, LCD_BACKLIGHT_PIN);
 
-    // ---- ADC ----
+    // ADC Init
     CLK_PeripheralClockConfig(CLK_PERIPHERAL_ADC, ENABLE);
     GPIO_Init(GPIOC, GPIO_PIN_4, GPIO_MODE_IN_FL_IT);
 
-    // ---- LCD Init ----
+    // LCD Init
     Lcd_Begin();
     Lcd_Clear();
 
@@ -70,32 +95,32 @@ int main(void)
     Lcd_Set_Cursor(2, 1);
     Lcd_Print_String("VOUT:");
 
-    // ---- MAIN LOOP ----
+    // Main Loop
     while (1)
     {
-        // Read ADC
-        ADC_value = ADC_Read(AIN3);
+        // ---- Read Averaged ADC Value ----
+        ADC_value = ADC_Read_Average(AIN3);
 
-        // Convert ADC to mV: 5V ADC ? 4.8875 mV per step
+        // Convert ADC step to mV (4.8875 mV per step for 5V ref)
         ADC_voltage = ADC_value * 4.8875;
 
-        // Convert mV ? V
+        // Convert to volts
         NEW_ADC_VOLTAGE = ADC_voltage / 1000.0;
 
         // Apply voltage divider (11x)
         NEW_ADC_VOLTAGE = NEW_ADC_VOLTAGE * 11;
 
-        // Print ADC raw value (4 digits)
+        // Print RAW ADC value
         Lcd_Set_Cursor(1, 5);
         LCD_Print_Var(ADC_value);
 
-        // ---- Float formatting (no float printf) ----
+        // Format float value manually
         integer_part = (int)NEW_ADC_VOLTAGE;
         decimal_part = (int)((NEW_ADC_VOLTAGE - integer_part) * 100);
 
         sprintf(buffer, "%d.%02d V", integer_part, decimal_part);
 
-        // Print formatted voltage
+        // Print voltage
         Lcd_Set_Cursor(2, 7);
         Lcd_Print_String(buffer);
 
